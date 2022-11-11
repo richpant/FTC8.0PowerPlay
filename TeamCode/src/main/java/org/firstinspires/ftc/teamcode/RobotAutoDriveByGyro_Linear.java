@@ -304,7 +304,7 @@ public class RobotAutoDriveByGyro_Linear extends LinearOpMode {
     public void turnToHeading(double maxTurnSpeed, double heading) {
 
         // Run getSteeringCorrection() once to pre-calculate the current error
-        getSteeringCorrection(heading, P_DRIVE_GAIN);
+       getSteeringCorrection(heading, 0.03);
 
         // keep looping while we are still active, and not on heading.
         while (opModeIsActive() && (Math.abs(headingError) > HEADING_THRESHOLD)) {
@@ -319,7 +319,7 @@ public class RobotAutoDriveByGyro_Linear extends LinearOpMode {
             moveRobot(0, turnSpeed);
 
             // Display drive status for the driver.
-            sendTelemetry(false);
+           // sendTelemetry(false);
         }
 
         // Stop all motion;
