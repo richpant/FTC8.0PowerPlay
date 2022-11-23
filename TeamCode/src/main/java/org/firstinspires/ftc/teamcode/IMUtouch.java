@@ -97,10 +97,10 @@ public class IMUtouch extends LinearOpMode
             telemetry.addData("3 correction", correction);
             telemetry.update();
 
-            leftFront.setPower(power - correction);
+            leftFront.setPower(-power - correction);
             rightRear.setPower(power + correction);
             leftRear.setPower(power-correction);
-            rightFront.setPower(power+correction);
+            rightFront.setPower(-power+correction);
             // We record the sensor values because we will test them in more than
             // one place with time passing between those places. See the lesson on
             // Timing Considerations to know why.
