@@ -181,7 +181,7 @@ public class distancePole extends LinearOpMode {
             sleep(25);
             if(middleRange.getDistance(DistanceUnit.INCH)<12.00){  //or whatever distance
                 move(0,0,0,0);
-            }
+            }//addeese
         }
         rightFront.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         leftFront.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
