@@ -35,12 +35,15 @@ import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.DistanceSensor;
+import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
 import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
 
 /**
@@ -99,7 +102,14 @@ public class RobotAutoDriveByGyro_Linear extends LinearOpMode {
     private DcMotor         rightRearDrive  = null;
     private DcMotor         leftRearDrive   = null;
     private DcMotor         rightFrontDrive = null;
-
+    private DcMotor         lift = null
+    private DistanceSensor  leftRange= null;
+    private DistanceSensor  rightRange = null;
+    private DistanceSensor   middleRange= null;
+    private Servo claw;
+    private Servo claw2;
+    double open = 0.36;
+    double close = 0.5;
     private BNO055IMU       imu         = null;      // Control/Expansion Hub IMU
 
     private double          robotHeading  = 0;
@@ -151,6 +161,9 @@ public class RobotAutoDriveByGyro_Linear extends LinearOpMode {
         leftRearDrive = hardwareMap.get(DcMotor.class, "leftRear");
         rightRearDrive = hardwareMap.get(DcMotor.class, "rightRear");
 
+        lift = hardwareMap.get(DcMotor.class,"lift");
+        claw = hardwareMap.get(Servo.class,"claw");
+        claw = hardwareMap.get(Servo.class, "claw2");
 
         // To drive forward, most robots need the motor on one side to be reversed, because the axles point in opposite directions.
         // When run, this OpMode should start both motors driving forward. So adjust these two lines based on your first test drive.
@@ -193,12 +206,28 @@ public class RobotAutoDriveByGyro_Linear extends LinearOpMode {
         // Notes:   Reverse movement is obtained by setting a negative distance (not speed)
         //          holdHeading() is used after turns to let the heading stabilize
         //          Add a sleep(2000) after any step to keep the telemetry data visible for review
+        claws(close);
+        liftup(500);
+        strafeStraight(DRIVE_SPEED, 17, 0.0);//check the distance if statement
+        liftup(400);//need to get correct height
+        moveToPole(6);// need distance to pole from scoring Could also be drive straight with a if for distance
+        claws(open);// Does lift need to move?
 
-        driveStraight(DRIVE_SPEED, 24.0, 0.0);    // Drive Forward 24"
-        turnToHeading( TURN_SPEED, -90.0);               // Turn  CW to -45 Degrees
-        holdHeading( TURN_SPEED, -90.0, 0.5);   // Hold -45 Deg heading for a 1/2 second
+        driveStraight(DRIVE_SPEED, 12.0, 0.0);    // get distance back to strafe
+        strafeStraight(DRIVE_SPEED,12,0.0); //line up with cones Could be a distance sensor to it
+        driveStraight(DRIVE_SPEED, 26, 0.0);//drive to cones Check distance
+        claws(close);
+        liftup(200);//check the height needed to lift cone off
+        driveStraight(DRIVE_SPEED, -36, 0.0);//move back to middle pole
+        turnToHeading( TURN_SPEED, 90.0);               // Turn  CCW to 90 Degrees
+        holdHeading( TURN_SPEED, 90.0, 0.10);   // Hold -45 Deg heading for a 10th second
+        liftup(1000);//check height
+        moveToPole(6);//check distance and could be a move forward?
+        claws(open);
+        turnToHeading(TURN_SPEED, 0.0);
+        // add camera....
 
-        driveStraight(DRIVE_SPEED, 24, -90.0);  // Drive Forward 17" at -45 degrees (12"x and 12"y)
+       /* driveStraight(DRIVE_SPEED, 24, -90.0);  // Drive Forward 17" at -45 degrees (12"x and 12"y)
         turnToHeading( TURN_SPEED,  90.0);               // Turn  CCW  to  45 Degrees
         holdHeading( TURN_SPEED,  90.0, 0.5);    // Hold  45 Deg heading for a 1/2 second
 
@@ -207,7 +236,7 @@ public class RobotAutoDriveByGyro_Linear extends LinearOpMode {
         holdHeading( TURN_SPEED,   0.0, 1.0);    // Hold  0 Deg heading for 1 second
 
         driveStraight(DRIVE_SPEED,-48.0, 0.0);    // Drive in Reverse 48" (should return to approx. staring position)
-        driveStraight(5.0,20.0,0.7);
+        driveStraight(5.0,20.0,0.7);*/
         telemetry.addData("Path", "Complete");
         telemetry.update();
         sleep(1000);  // Pause to display last telemetry message.
@@ -267,6 +296,63 @@ public class RobotAutoDriveByGyro_Linear extends LinearOpMode {
             while (opModeIsActive() &&
                    (leftFrontDrive.isBusy() && rightFrontDrive.isBusy())) {
 
+                // Determine required steering to keep on heading
+                turnSpeed = getSteeringCorrection(heading, P_DRIVE_GAIN);
+
+                // if driving in reverse, the motor correction also needs to be reversed
+                if (distance < 0)
+                    turnSpeed *= -1.0;
+
+                // Apply the turning correction to the current driving speed.
+                moveRobot(driveSpeed, turnSpeed);
+
+                // Display drive status for the driver.
+                sendTelemetry(true);
+            }
+
+            // Stop all motion & Turn off RUN_TO_POSITION
+            moveRobot(0, 0);
+            leftFrontDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            rightFrontDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            leftRearDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            rightRearDrive.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        }
+    }
+    public void strafeStraight(double maxDriveSpeed,
+                              double distance,
+                              double heading) {
+
+        // Ensure that the opmode is still active
+        if (opModeIsActive()) {
+
+            // Determine new target position, and pass to motor controller
+            int moveCounts = (int)(distance * COUNTS_PER_INCH);
+            leftTarget = leftFrontDrive.getCurrentPosition() + moveCounts;
+            rightTarget = rightFrontDrive.getCurrentPosition() + moveCounts;
+
+            // Set Target FIRST, then turn on RUN_TO_POSITION
+            leftFrontDrive.setTargetPosition(-leftTarget);
+            rightFrontDrive.setTargetPosition(-rightTarget);
+            leftRearDrive.setTargetPosition(leftTarget);
+            rightRearDrive.setTargetPosition(rightTarget);
+
+
+            leftFrontDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+            rightFrontDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+            leftRearDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+            rightRearDrive.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
+            // Set the required driving speed  (must be positive for RUN_TO_POSITION)
+            // Start driving straight, and then enter the control loop
+            maxDriveSpeed = Math.abs(maxDriveSpeed);
+            moveRobot(maxDriveSpeed, 0);
+
+            // keep looping while we are still active, and BOTH motors are running.
+            while (opModeIsActive() &&
+                    (leftFrontDrive.isBusy() && rightFrontDrive.isBusy())) {
+                if(middleRange.getDistance(DistanceUnit.INCH)<12.00){  //or whatever distanceTODO
+                    moveRobot(0, 0);
+                }//addeese
                 // Determine required steering to keep on heading
                 turnSpeed = getSteeringCorrection(heading, P_DRIVE_GAIN);
 
@@ -451,5 +537,57 @@ public class RobotAutoDriveByGyro_Linear extends LinearOpMode {
         // Save a new heading offset equal to the current raw heading.
         headingOffset = getRawHeading();
         robotHeading = 0;
+    }
+
+    public void claws(double q) {
+        claw.setPosition(1 - q);
+        claw2.setPosition(q);
+    }
+    //===============================lift====================
+    //----------------------Lift------------
+    public void liftup(int encod) {
+        //lift.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+
+        lift.setTargetPosition(encod);
+
+        lift.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
+        lift.setPower(1);
+        while (lift.isBusy()) {
+            sleep(50);
+        }
+        lift.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+
+        lift.setPower(0);
+
+    }
+
+    public void liftDown(int down) {
+
+        lift.setTargetPosition(down);
+
+        lift.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
+        lift.setPower(-1);
+        while (lift.isBusy()) {
+            sleep(50);
+        }
+        lift.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+
+        lift.setPower(0);
+
+    }
+    public void moveToPole(double pole){
+        if(middleRange.getDistance(DistanceUnit.INCH)<pole){
+            leftFrontDrive.setPower(.3);
+            leftRearDrive.setPower(.3);
+            rightFrontDrive.setPower(.3);
+            rightRearDrive.setPower(.3);
+        }else{
+            leftFrontDrive.setPower(0);
+            leftRearDrive.setPower(0);
+            rightFrontDrive.setPower(0);
+            rightRearDrive.setPower(0);
+        }
     }
 }
